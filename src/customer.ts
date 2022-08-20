@@ -159,3 +159,42 @@ export const loginWithOtp = async (ctx: Koa.Context) => {
         response: authToken
     };
 };
+
+export const customerOtp = async (ctx: Context) => {
+    const tenant = ctx.tenant;
+    const { phone, otp } = ctx.request.body;
+
+    const customer = await Customer.findOne({
+        tenant: tenant,
+        'authentication.phone': phone
+    });
+
+    if (!customer) {
+        ctx.throw(400, "Account doesn't exist");
+    }
+
+    if (otp) {
+        const verified = await verifyUserOtp(
+            otp,
+            customer._id,
+            customerOtpConcern
+        );
+        if (!verified) {
+            ctx.throw(401, 'Invalid OTP');
+        }
+
+        const payload = await createLoggedInPayload(customer, tenant, true);
+
+        ctx.body = {
+            status: 1,
+            response: payload
+        };
+        return;
+    }
+
+    await sendOtpToUser(phone, customer._id, customerOtpConcern);
+    ctx.body = {
+        status: 1,
+        message: 'OTP has been sent to your registered mobile number.'
+    };
+};
